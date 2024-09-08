@@ -1,3 +1,5 @@
+import sys
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,6 +12,27 @@ def read_in_h5(filename):
     h5_df = pd.read_hdf(filename)
     h5_df = h5_df.droplevel(0, axis=1)
     return h5_df
+
+
+# This one is heavily reliant on the structure staying the same - definitely something to look out for before deciding
+# on the final workflow for running all the analysis
+def read_in_behav(filename):
+    behav_data = pd.read_csv(filename, header=None, names=['Direction', 'Correct', 'ReactionTimeLeft',
+                                                           'ReactionTimeRight', 'StartTime'])
+    behav_data['Correct'] = behav_data['Correct'].astype(int)
+    return behav_data
+
+
+def code_lick_direction(data):
+    data['Decision'] = 0
+    for i in range(len(data)):
+        if np.isnan(data['ReactionTimeLeft'][i]) and np.isnan(data['ReactionTimeRight'][i]):
+            data.loc[i, 'Decision'] = 0
+        if not np.isnan(data['ReactionTimeLeft'][i]) and np.isnan(data['ReactionTimeRight'][i]):
+            data.loc[i, 'Decision'] = 1
+        if np.isnan(data['ReactionTimeLeft'][i]) and not np.isnan(data['ReactionTimeRight'][i]):
+            data.loc[i, 'Decision'] = 2
+    return data
 
 
 def calculate_pupil_diameter(pupil_coordinates):
@@ -168,8 +191,17 @@ def estimate_baseline(data_df, trial_df):
 
 def add_performance_data(pupil_df, behav_data):
     i = 0
+    # not happy with that but to prevent the df interpreting the values as float the column needs to be created first
+    # that's why it's only for "Direction" and "Correct" as these need to be int. The other times need to be float.
+    pupil_df['Direction'] = 0
+    pupil_df['Decision'] = 0
+    pupil_df['Correct'] = 0
     for trial in pupil_df['Trial']:
-        pupil_df.loc[i, 'Correct'] = behav_data.iloc[i,1]
+        pupil_df.loc[i, 'Direction'] = behav_data.loc[i, 'Direction']
+        pupil_df.loc[i, 'Decision'] = behav_data.loc[i, 'Decision']
+        pupil_df.loc[i, 'Correct'] = behav_data.loc[i, 'Correct']
+        pupil_df.loc[i, 'ReactionTimeLeft'] = behav_data.loc[i, 'ReactionTimeLeft']
+        pupil_df.loc[i, 'ReactionTimeRight'] = behav_data.loc[i, 'ReactionTimeRight']
         i += 1
     return pupil_df
 
@@ -202,8 +234,5 @@ def plot_performance_graph(trial_df, data_df, ax):
     plt.xlabel('Time (in min)', fontsize=20)
     plt.ylabel('Pupil Diameter (a.u.)', fontsize=20)
     plt.legend(fontsize=20)
-
-    # Show the plot
-    plt.show()
 
 
